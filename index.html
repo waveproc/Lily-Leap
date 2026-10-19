@@ -1,0 +1,1263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Lily Leap — Hop the Pond</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #c8e5f5; font-family: 'Fredoka', sans-serif; color: #fff; }
+  #canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+
+  #ui {
+    position: fixed; inset: 0; pointer-events: none;
+    display: flex; flex-direction: column; justify-content: space-between;
+    padding: calc(env(safe-area-inset-top) + 14px) 18px calc(env(safe-area-inset-bottom) + 18px);
+  }
+
+  .top-bar { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+
+  .score-card {
+    background: rgba(8, 28, 48, 0.45);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    border: 1.5px solid rgba(150, 210, 255, 0.3);
+    border-radius: 18px;
+    padding: 9px 16px 10px;
+    box-shadow: 0 8px 24px rgba(0, 10, 30, 0.2), inset 0 1px 0 rgba(255,255,255,0.15);
+  }
+  .score-label {
+    font-size: 10px; font-weight: 500;
+    text-transform: uppercase; letter-spacing: 2.5px;
+    color: #7ec5ff; opacity: 0.9;
+  }
+  .score-value { font-size: 30px; font-weight: 700; line-height: 1; margin-top: 3px; color: #fff; }
+  .best-card { text-align: right; }
+  .best-card .score-value { font-size: 20px; color: #b0d8ff; }
+
+  .bottom-area { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+
+  .power-container {
+    width: 78%; max-width: 320px; height: 16px;
+    background: rgba(8, 28, 48, 0.45);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border: 1.5px solid rgba(150, 210, 255, 0.3);
+    border-radius: 14px; overflow: hidden;
+    opacity: 0; transition: opacity 0.25s, transform 0.25s;
+    transform: translateY(8px);
+    box-shadow: 0 8px 24px rgba(0, 10, 30, 0.2);
+    position: relative;
+  }
+  .power-container.active { opacity: 1; transform: translateY(0); }
+  .power-fill {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, #4caf50 0%, #cddc39 50%, #ffc107 100%);
+    border-radius: 12px;
+    box-shadow: 0 0 16px rgba(205, 220, 57, 0.6);
+  }
+  .power-container::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.2) 50%, transparent 100%);
+    background-size: 60px 100%;
+    animation: shimmer 1.5s linear infinite;
+    pointer-events: none;
+  }
+  @keyframes shimmer { 0% { background-position: -60px 0; } 100% { background-position: 200% 0; } }
+
+  .instructions {
+    font-size: 13px; font-weight: 500;
+    text-align: center; opacity: 0.85;
+    text-shadow: 0 2px 12px rgba(0, 20, 40, 0.7);
+    letter-spacing: 0.5px;
+    transition: opacity 0.6s;
+  }
+  .instructions strong { color: #cddc39; font-weight: 700; }
+
+  #game-over, #start-screen {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 24px; pointer-events: auto;
+    background: radial-gradient(ellipse at center, rgba(20, 50, 80, 0.75) 0%, rgba(5, 15, 30, 0.95) 70%);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    transition: opacity 0.5s, visibility 0.5s;
+    padding: 30px;
+  }
+  #game-over { opacity: 0; visibility: hidden; }
+  #game-over.visible { opacity: 1; visibility: visible; }
+  #start-screen.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+
+  .game-title {
+    font-size: clamp(48px, 14vw, 80px);
+    font-weight: 700; line-height: 0.92;
+    text-align: center;
+    background: linear-gradient(180deg, #e8f6ff 0%, #5ab4e8 100%);
+    -webkit-background-clip: text; background-clip: text;
+    color: transparent;
+    text-shadow: 0 8px 40px rgba(90, 180, 232, 0.35);
+    letter-spacing: -2px;
+  }
+  .game-title span {
+    display: block; font-size: 0.28em; font-weight: 500;
+    color: #81c784; margin-top: 14px; letter-spacing: 4px;
+    -webkit-text-fill-color: #81c784;
+    text-shadow: 0 4px 20px rgba(80, 200, 120, 0.3);
+  }
+
+  .tagline {
+    color: #fff; opacity: 0.72;
+    font-size: 15px; text-align: center;
+    max-width: 280px; line-height: 1.55; font-weight: 400;
+  }
+
+  .btn {
+    background: linear-gradient(135deg, #43a047 0%, #66bb6a 100%);
+    border: none; color: white;
+    font-family: inherit; font-size: 17px; font-weight: 600;
+    padding: 18px 52px; border-radius: 50px;
+    cursor: pointer; letter-spacing: 2px; text-transform: uppercase;
+    box-shadow: 0 12px 32px rgba(67, 160, 71, 0.45), inset 0 1px 0 rgba(255,255,255,0.35);
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .btn:active { transform: scale(0.96) translateY(1px); box-shadow: 0 6px 16px rgba(67, 160, 71, 0.45), inset 0 1px 0 rgba(255,255,255,0.35); }
+  .btn.blue { background: linear-gradient(135deg, #1e88e5 0%, #42a5f5 100%); box-shadow: 0 12px 32px rgba(30, 136, 229, 0.45), inset 0 1px 0 rgba(255,255,255,0.35); }
+  .btn.blue:active { box-shadow: 0 6px 16px rgba(30, 136, 229, 0.45), inset 0 1px 0 rgba(255,255,255,0.35); }
+
+  #game-over h1 {
+    font-size: clamp(54px, 16vw, 88px); font-weight: 700;
+    color: #42a5f5; letter-spacing: -2px; line-height: 1;
+    text-shadow: 0 8px 40px rgba(66, 165, 245, 0.5);
+    animation: wobble 0.6s ease-out;
+  }
+  @keyframes wobble {
+    0% { transform: scale(0.3) rotate(-10deg); opacity: 0; }
+    60% { transform: scale(1.1) rotate(3deg); opacity: 1; }
+    100% { transform: scale(1) rotate(0); }
+  }
+
+  .final-stats { text-align: center; }
+  .final-jumps { font-size: 14px; opacity: 0.7; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 6px; color: #b0d8ff; }
+  .final-score { font-size: 80px; font-weight: 700; color: #ffd54f; line-height: 1; text-shadow: 0 4px 30px rgba(255, 213, 79, 0.4); }
+  .new-best {
+    color: #fff; font-weight: 600; font-size: 13px;
+    text-transform: uppercase; letter-spacing: 4px; margin-top: 12px;
+    background: linear-gradient(135deg, #43a047, #cddc39);
+    padding: 6px 16px; border-radius: 20px;
+    box-shadow: 0 6px 20px rgba(102, 187, 106, 0.4);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+  .new-best.hidden { display: none; }
+
+  .controls-hint {
+    display: flex; gap: 18px; margin-top: 8px;
+    color: #fff; opacity: 0.5; font-size: 12px;
+    text-transform: uppercase; letter-spacing: 2px;
+  }
+  .controls-hint span { display: flex; align-items: center; gap: 6px; }
+  .controls-hint i {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px;
+    border: 1.5px solid currentColor; border-radius: 50%;
+    font-style: normal; font-size: 11px;
+  }
+</style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+
+  <div id="ui">
+    <div class="top-bar">
+      <div class="score-card">
+        <div class="score-label">Jumps</div>
+        <div class="score-value" id="score">0</div>
+      </div>
+      <div class="score-card best-card">
+        <div class="score-label">Best</div>
+        <div class="score-value" id="best">0</div>
+      </div>
+    </div>
+
+    <div class="bottom-area">
+      <div class="power-container" id="power-container">
+        <div class="power-fill" id="power-fill"></div>
+      </div>
+      <div class="instructions" id="instructions">
+        <strong>Hold</strong> to charge · <strong>Release</strong> to leap
+      </div>
+    </div>
+  </div>
+
+  <div id="start-screen">
+    <h1 class="game-title">Lily Leap<span>hop · charge · fly</span></h1>
+    <p class="tagline">A tiny frog on an endless blue pond. Follow the dotted arc, land on each lily pad, and see how far you can hop.</p>
+    <button class="btn" id="start-btn">Begin Hopping</button>
+    <div class="controls-hint">
+      <span><i>↓</i>Hold</span>
+      <span><i>↑</i>Release</span>
+    </div>
+  </div>
+
+  <div id="game-over">
+    <h1>Splash!</h1>
+    <div class="final-stats">
+      <div class="final-jumps">You landed</div>
+      <div class="final-score" id="final-score">0</div>
+      <div class="new-best hidden" id="new-best">New Personal Best</div>
+    </div>
+    <button class="btn blue" id="restart-btn">Try Again</button>
+  </div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+// ============= RENDERER =============
+const canvas = document.getElementById('canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.NoToneMapping;
+renderer.setClearColor(0xc8e5f5);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0xb8d8ea, 40, 120);
+
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 500);
+camera.position.set(0, 5.5, 8);
+camera.lookAt(0, 0.5, -3);
+
+// ============= LIGHTING =============
+const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+scene.add(ambient);
+
+const sun = new THREE.DirectionalLight(0xfff5e0, 1.2);
+sun.position.set(10, 22, 6);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -20;
+sun.shadow.camera.right = 20;
+sun.shadow.camera.top = 20;
+sun.shadow.camera.bottom = -20;
+sun.shadow.camera.near = 0.5;
+sun.shadow.camera.far = 60;
+sun.shadow.bias = -0.0006;
+sun.shadow.normalBias = 0.03;
+scene.add(sun);
+
+const hemi = new THREE.HemisphereLight(0x8ec5e8, 0x3a6a4a, 0.5);
+scene.add(hemi);
+
+// ============= SKY =============
+const SUN_DIR = new THREE.Vector3(0.35, 0.55, 0.35).normalize();
+const SKY_HORIZON_COLOR = new THREE.Color(0xc8e5f5);
+
+const skyMat = new THREE.ShaderMaterial({
+  uniforms: {
+    topColor: { value: new THREE.Color(0x2a7fc5) },
+    midColor: { value: new THREE.Color(0x6ab8e8) },
+    botColor: { value: SKY_HORIZON_COLOR },
+    time: { value: 0 },
+    sunDir: { value: SUN_DIR }
+  },
+  vertexShader: `
+    varying vec3 vDir;
+    void main() {
+      vDir = normalize(position);
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+    uniform vec3 topColor, midColor, botColor;
+    uniform float time;
+    uniform vec3 sunDir;
+    varying vec3 vDir;
+
+    float hash(vec2 p) {
+      p = fract(p * vec2(443.897, 441.423));
+      p += dot(p, p.yx + 19.19);
+      return fract((p.x + p.y) * p.x);
+    }
+    float noise(vec2 p) {
+      vec2 i = floor(p);
+      vec2 f = fract(p);
+      f = f * f * (3.0 - 2.0 * f);
+      return mix(
+        mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
+        mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x),
+        f.y
+      );
+    }
+    float fbm(vec2 p) {
+      float v = 0.0;
+      float a = 0.5;
+      for (int i = 0; i < 5; i++) {
+        v += a * noise(p);
+        p = p * 2.1 + vec2(3.7, 1.3);
+        a *= 0.5;
+      }
+      return v;
+    }
+
+    void main() {
+      vec3 dir = normalize(vDir);
+      float h = dir.y;
+      vec3 col;
+      if (h > 0.0) {
+        col = mix(midColor, topColor, smoothstep(0.0, 0.55, h));
+      } else {
+        col = mix(midColor, botColor, smoothstep(0.0, -0.35, h));
+      }
+
+      if (h > 0.02) {
+        vec2 cuv = dir.xz / (h + 0.12) * 0.7;
+        cuv += vec2(time * 0.008, time * 0.003);
+        float c = fbm(cuv);
+        c = smoothstep(0.46, 0.72, c);
+        float fade = smoothstep(0.02, 0.16, h) * (1.0 - smoothstep(0.7, 0.98, h) * 0.4);
+        col = mix(col, vec3(1.0, 0.99, 0.97), c * fade * 0.92);
+      }
+
+      float sd = max(dot(dir, sunDir), 0.0);
+      col += vec3(1.0, 0.95, 0.82) * (pow(sd, 350.0) * 1.5 + pow(sd, 18.0) * 0.12);
+
+      gl_FragColor = vec4(col, 1.0);
+    }
+  `,
+  side: THREE.BackSide,
+  depthWrite: false
+});
+const sky = new THREE.Mesh(new THREE.SphereGeometry(400, 32, 16), skyMat);
+sky.frustumCulled = false;
+scene.add(sky);
+
+// ============= WATER =============
+const waterUniforms = {
+  time: { value: 0 },
+  colorDeep: { value: new THREE.Color(0x0a3a5a) },
+  colorSurface: { value: new THREE.Color(0x1e7e9e) },
+  sunDir: { value: SUN_DIR.clone() },
+  sunColor: { value: new THREE.Color(0xfff0d0) },
+  skyColor: { value: SKY_HORIZON_COLOR.clone() },
+  cameraPos: { value: new THREE.Vector3() }
+};
+
+const waterGeom = new THREE.PlaneGeometry(2000, 2000, 100, 100);
+const waterMat = new THREE.ShaderMaterial({
+  uniforms: waterUniforms,
+  vertexShader: `
+    uniform float time;
+    varying float vWave;
+    varying vec3 vNormal;
+    varying vec3 vWorldPos;
+
+    float waveH(vec2 p) {
+      float w = sin(p.x * 0.45 + time * 1.1) * 0.12;
+      w += cos(p.y * 0.6 + time * 0.9) * 0.09;
+      w += sin((p.x + p.y) * 0.8 + time * 1.5) * 0.05;
+      w += sin(p.x * 1.4 + time * 2.2) * 0.02;
+      return w;
+    }
+
+    void main() {
+      vec3 pos = position;
+      vec2 p = pos.xy;
+      float w = waveH(p);
+      pos.z += w;
+      vWave = w;
+      float eps = 0.5;
+      float wx = waveH(p + vec2(eps, 0.0));
+      float wy = waveH(p + vec2(0.0, eps));
+      vec3 localNormal = normalize(vec3(-(wx - w) / eps, -(wy - w) / eps, 1.0));
+      vNormal = normalize((modelMatrix * vec4(localNormal, 0.0)).xyz);
+      vec4 worldPos = modelMatrix * vec4(pos, 1.0);
+      vWorldPos = worldPos.xyz;
+      gl_Position = projectionMatrix * viewMatrix * worldPos;
+    }
+  `,
+  fragmentShader: `
+    uniform vec3 colorDeep, colorSurface, sunDir, sunColor, skyColor;
+    uniform float time;
+    varying float vWave;
+    varying vec3 vNormal;
+    varying vec3 vWorldPos;
+
+    void main() {
+      vec3 col = mix(colorDeep, colorSurface, vWave * 2.0 + 0.5);
+      vec3 viewDir = normalize(cameraPosition - vWorldPos);
+      float fres = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 3.0);
+      col = mix(col, skyColor, fres * 0.6);
+      vec3 halfDir = normalize(sunDir + viewDir);
+      float spec = pow(max(dot(vNormal, halfDir), 0.0), 150.0);
+      col += sunColor * spec * 1.5;
+      float dist = length(vWorldPos.xz - cameraPosition.xz);
+      col = mix(col, skyColor * 0.95, smoothstep(40.0, 100.0, dist));
+      gl_FragColor = vec4(col, 1.0);
+    }
+  `
+});
+const water = new THREE.Mesh(waterGeom, waterMat);
+water.rotation.x = -Math.PI / 2;
+water.position.y = -0.3;
+scene.add(water);
+
+// ============= TROPICAL ISLANDS & ROCKS =============
+function createPalmTree(x, y, z, scale) {
+  const tree = new THREE.Group();
+  const trunkGeom = new THREE.CylinderGeometry(0.1 * scale, 0.15 * scale, 2 * scale, 6);
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x8d5524, roughness: 0.9 });
+  const trunk = new THREE.Mesh(trunkGeom, trunkMat);
+  trunk.position.y = scale;
+  trunk.castShadow = true;
+  tree.add(trunk);
+
+  const leafMat = new THREE.MeshStandardMaterial({ color: 0x2e8b57, roughness: 0.8, side: THREE.DoubleSide });
+  const leafGeom = new THREE.SphereGeometry(0.8 * scale, 4, 4);
+  for (let i = 0; i < 5; i++) {
+    const leaf = new THREE.Mesh(leafGeom, leafMat);
+    leaf.position.y = 2 * scale;
+    leaf.position.x = Math.cos(i / 5 * Math.PI * 2) * 0.6 * scale;
+    leaf.position.z = Math.sin(i / 5 * Math.PI * 2) * 0.6 * scale;
+    leaf.scale.set(1, 0.3, 1.5);
+    leaf.rotation.z = Math.cos(i / 5 * Math.PI * 2) * 0.5;
+    leaf.rotation.x = Math.sin(i / 5 * Math.PI * 2) * 0.5;
+    leaf.castShadow = true;
+    tree.add(leaf);
+  }
+  tree.position.set(x, y, z);
+  return tree;
+}
+
+function createIsland(x, z, scale = 1) {
+  const island = new THREE.Group();
+  const sandGeom = new THREE.CylinderGeometry(4 * scale, 3.2 * scale, 1.2 * scale, 8);
+  const sandMat = new THREE.MeshStandardMaterial({ color: 0xeed695, roughness: 0.9 });
+  const sand = new THREE.Mesh(sandGeom, sandMat);
+  sand.position.y = 0.3 * scale;
+  sand.castShadow = true;
+  sand.receiveShadow = true;
+  island.add(sand);
+
+  const grassGeom = new THREE.CylinderGeometry(3 * scale, 3.2 * scale, 0.5 * scale, 8);
+  const grassMat = new THREE.MeshStandardMaterial({ color: 0x66bb6a, roughness: 0.8 });
+  const grass = new THREE.Mesh(grassGeom, grassMat);
+  grass.position.y = 1.1 * scale;
+  grass.castShadow = true;
+  grass.receiveShadow = true;
+  island.add(grass);
+
+  const numTrees = 1 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < numTrees; i++) {
+    const px = (Math.random() - 0.5) * 4 * scale;
+    const pz = (Math.random() - 0.5) * 4 * scale;
+    island.add(createPalmTree(px, 1.3 * scale, pz, 0.8 + Math.random() * 0.4));
+  }
+
+  island.position.set(x, -0.3, z);
+  return island;
+}
+
+function createRock(x, z, scale = 1) {
+  const rock = new THREE.Mesh(
+    new THREE.DodecahedronGeometry(scale, 0),
+    new THREE.MeshStandardMaterial({ color: 0x808080, roughness: 0.9 })
+  );
+  rock.position.set(x, -0.1 * scale, z);
+  rock.rotation.set(Math.random(), Math.random(), Math.random());
+  rock.scale.set(1, 0.6 + Math.random() * 0.4, 1);
+  rock.castShadow = true;
+  rock.receiveShadow = true;
+  return rock;
+}
+
+// Scatter 25 islands
+for (let i = 0; i < 25; i++) {
+  const angle = Math.random() * Math.PI * 2;
+  const dist = 25 + Math.random() * 45;
+  const scale = 0.6 + Math.random() * 2.0;
+  scene.add(createIsland(Math.cos(angle) * dist, Math.sin(angle) * dist, scale));
+}
+
+// Scatter rocks
+for (let i = 0; i < 20; i++) {
+  const angle = Math.random() * Math.PI * 2;
+  const dist = 15 + Math.random() * 40;
+  const scale = 0.3 + Math.random() * 1.2;
+  scene.add(createRock(Math.cos(angle) * dist, Math.sin(angle) * dist, scale));
+}
+
+// ============= LILY PAD =============
+function createLilyPadGeometry(size) {
+  const shape = new THREE.Shape();
+  const segments = 24;
+  const notch = 0.42;
+  const startA = notch / 2;
+  const endA = Math.PI * 2 - notch / 2;
+  shape.moveTo(Math.cos(startA) * size, Math.sin(startA) * size);
+  for (let i = 1; i <= segments; i++) {
+    const t = startA + (endA - startA) * (i / segments);
+    shape.lineTo(Math.cos(t) * size, Math.sin(t) * size);
+  }
+  shape.lineTo(0, 0);
+  shape.closePath();
+  const geom = new THREE.ExtrudeGeometry(shape, {
+    depth: 0.1, bevelEnabled: true,
+    bevelThickness: 0.02, bevelSize: 0.035, bevelSegments: 2
+  });
+  geom.rotateX(-Math.PI / 2);
+  geom.translate(0, 0.05, 0);
+  geom.computeVertexNormals();
+  return geom;
+}
+
+function createFlower() {
+  const group = new THREE.Group();
+  const colors = [0xff80ab, 0xfff0e0, 0xff5c8a, 0xffc1d6, 0xe040fb];
+  const petalColor = colors[Math.floor(Math.random() * colors.length)];
+  const petalMat = new THREE.MeshStandardMaterial({
+    color: petalColor, roughness: 0.4,
+    emissive: petalColor, emissiveIntensity: 0.08
+  });
+  const petalCount = 6;
+  for (let i = 0; i < petalCount; i++) {
+    const angle = (i / petalCount) * Math.PI * 2;
+    const g = new THREE.SphereGeometry(0.09, 8, 6);
+    g.scale(1, 0.35, 1.7);
+    const m = new THREE.Mesh(g, petalMat);
+    m.position.set(Math.cos(angle) * 0.08, 0.1, Math.sin(angle) * 0.08);
+    m.lookAt(Math.cos(angle) * 2, 0.16, Math.sin(angle) * 2);
+    m.rotateX(Math.PI / 2);
+    group.add(m);
+  }
+  const center = new THREE.Mesh(
+    new THREE.SphereGeometry(0.07, 10, 8),
+    new THREE.MeshStandardMaterial({ color: 0xffd54f, roughness: 0.3, emissive: 0xffaa00, emissiveIntensity: 0.25 })
+  );
+  center.position.y = 0.1;
+  group.add(center);
+  return group;
+}
+
+function createLilyPad(size = 1.0, withFlower = true) {
+  const group = new THREE.Group();
+  const padMat = new THREE.MeshStandardMaterial({
+    color: 0x4caf50, roughness: 0.6,
+    emissive: 0x1a3a14, emissiveIntensity: 0.1
+  });
+  const pad = new THREE.Mesh(createLilyPadGeometry(size), padMat);
+  pad.castShadow = true;
+  pad.receiveShadow = true;
+  group.add(pad);
+
+  const veinMat = new THREE.LineBasicMaterial({ color: 0x2e6e26, transparent: true, opacity: 0.35 });
+  const veinPoints = [];
+  const notch = 0.42;
+  for (let i = 0; i < 6; i++) {
+    const t = notch / 2 + (i / 5) * (Math.PI * 2 - notch);
+    veinPoints.push(new THREE.Vector3(0, 0.12, 0));
+    veinPoints.push(new THREE.Vector3(Math.cos(t) * size * 0.92, 0.12, Math.sin(t) * size * 0.92));
+  }
+  const veinGeom = new THREE.BufferGeometry().setFromPoints(veinPoints);
+  group.add(new THREE.LineSegments(veinGeom, veinMat));
+
+  if (withFlower && Math.random() > 0.4) {
+    const f = createFlower();
+    const a = Math.random() * Math.PI * 2;
+    f.position.set(Math.cos(a) * size * 0.42, 0.12, Math.sin(a) * size * 0.42);
+    group.add(f);
+  }
+  return group;
+}
+
+// ============= FROG =============
+function createFrog() {
+  const group = new THREE.Group();
+  const skinMat = new THREE.MeshStandardMaterial({ color: 0x4caf50, roughness: 0.45 });
+  const bellyMat = new THREE.MeshStandardMaterial({ color: 0xffe8a8, roughness: 0.55 });
+  const spotMat = new THREE.MeshStandardMaterial({ color: 0x2d7030, roughness: 0.5 });
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.3 });
+
+  const bodyGeom = new THREE.SphereGeometry(0.4, 22, 16);
+  bodyGeom.scale(1.15, 0.78, 1.25);
+  const body = new THREE.Mesh(bodyGeom, skinMat);
+  body.position.y = 0.32;
+  body.castShadow = true;
+  group.add(body);
+
+  [[-0.15, 0.5, 0.05], [0.18, 0.55, -0.1], [0, 0.6, -0.2], [-0.25, 0.45, -0.2], [0.22, 0.48, 0.15]].forEach(([x, y, z]) => {
+    const sg = new THREE.SphereGeometry(0.06, 8, 6);
+    sg.scale(1, 0.3, 1);
+    const s = new THREE.Mesh(sg, spotMat);
+    s.position.set(x, y, z);
+    group.add(s);
+  });
+
+  const bellyGeom = new THREE.SphereGeometry(0.36, 16, 12);
+  bellyGeom.scale(1.08, 0.5, 1.0);
+  const belly = new THREE.Mesh(bellyGeom, bellyMat);
+  belly.position.y = 0.17;
+  group.add(belly);
+
+  const eyeWhite = new THREE.MeshStandardMaterial({ color: 0xfff8e0, roughness: 0.3 });
+  const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.14, 14, 10), eyeWhite);
+  eyeL.position.set(-0.19, 0.65, 0.18);
+  eyeL.castShadow = true;
+  group.add(eyeL);
+  const eyeR = eyeL.clone();
+  eyeR.position.x = 0.19;
+  group.add(eyeR);
+
+  const pupilL = new THREE.Mesh(new THREE.SphereGeometry(0.065, 12, 8), darkMat);
+  pupilL.position.set(-0.19, 0.65, 0.3);
+  group.add(pupilL);
+  const pupilR = pupilL.clone();
+  pupilR.position.x = 0.19;
+  group.add(pupilR);
+
+  const shine = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  const sL = new THREE.Mesh(new THREE.SphereGeometry(0.022, 6, 4), shine);
+  sL.position.set(-0.165, 0.68, 0.355);
+  group.add(sL);
+  const sR = sL.clone();
+  sR.position.x = 0.215;
+  group.add(sR);
+
+  const mouth = new THREE.Mesh(
+    new THREE.TorusGeometry(0.11, 0.022, 6, 14, Math.PI),
+    darkMat
+  );
+  mouth.position.set(0, 0.27, 0.36);
+  mouth.rotation.x = Math.PI;
+  group.add(mouth);
+
+  const legGeom = new THREE.SphereGeometry(0.16, 10, 8);
+  legGeom.scale(1.35, 0.7, 1.85);
+  const legMat = new THREE.MeshStandardMaterial({ color: 0x388e3c, roughness: 0.5 });
+  const legL = new THREE.Mesh(legGeom, legMat);
+  legL.position.set(-0.3, 0.2, -0.27);
+  legL.castShadow = true;
+  group.add(legL);
+  const legR = legL.clone();
+  legR.position.x = 0.3;
+  group.add(legR);
+
+  const footGeom = new THREE.SphereGeometry(0.09, 8, 6);
+  footGeom.scale(1.45, 0.4, 1.25);
+  const footL = new THREE.Mesh(footGeom, skinMat);
+  footL.position.set(-0.2, 0.06, 0.32);
+  group.add(footL);
+  const footR = footL.clone();
+  footR.position.x = 0.2;
+  group.add(footR);
+
+  group.userData = { body, belly, eyeL, eyeR, pupilL, pupilR, legL, legR, footL, footR };
+  return group;
+}
+
+// ============= DECORATIONS =============
+function createReedClump(x, z) {
+  const group = new THREE.Group();
+  const count = 3 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < count; i++) {
+    const h = 1.2 + Math.random() * 1.8;
+    const reed = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.03, 0.05, h, 5),
+      new THREE.MeshStandardMaterial({ color: 0x355020, roughness: 0.85 })
+    );
+    reed.position.set((Math.random() - 0.5) * 0.5, h / 2 - 0.3, (Math.random() - 0.5) * 0.5);
+    reed.rotation.z = (Math.random() - 0.5) * 0.2;
+    reed.castShadow = true;
+    group.add(reed);
+    if (Math.random() > 0.5) {
+      const tip = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.05, 0.05, 0.25, 6),
+        new THREE.MeshStandardMaterial({ color: 0x6b3a18, roughness: 0.7 })
+      );
+      tip.position.copy(reed.position);
+      tip.position.y += h / 2 + 0.08;
+      tip.rotation.z = reed.rotation.z;
+      group.add(tip);
+    }
+  }
+  group.position.set(x, -0.3, z);
+  return group;
+}
+
+for (let i = 0; i < 30; i++) {
+  const angle = Math.random() * Math.PI * 2;
+  const dist = 14 + Math.random() * 22;
+  scene.add(createReedClump(Math.cos(angle) * dist, Math.sin(angle) * dist));
+}
+
+for (let i = 0; i < 10; i++) {
+  const angle = Math.random() * Math.PI * 2;
+  const dist = 18 + Math.random() * 20;
+  const size = 0.6 + Math.random() * 0.7;
+  const pad = createLilyPad(size, Math.random() > 0.4);
+  pad.position.set(Math.cos(angle) * dist, -0.22, Math.sin(angle) * dist);
+  pad.userData.bobOffset = Math.random() * Math.PI * 2;
+  pad.userData.decorative = true;
+  scene.add(pad);
+}
+
+// ============= PARTICLES =============
+class ParticleSystem {
+  constructor(maxParticles = 300) {
+    this.max = maxParticles;
+    this.particles = [];
+    const geom = new THREE.BufferGeometry();
+    this.positions = new Float32Array(maxParticles * 3);
+    this.colors = new Float32Array(maxParticles * 3);
+    this.sizes = new Float32Array(maxParticles);
+    geom.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
+    geom.setAttribute('aColor', new THREE.BufferAttribute(this.colors, 3));
+    geom.setAttribute('aSize', new THREE.BufferAttribute(this.sizes, 1));
+    const mat = new THREE.ShaderMaterial({
+      vertexShader: `
+        attribute vec3 aColor;
+        attribute float aSize;
+        varying vec3 vColor;
+        void main() {
+          vColor = aColor;
+          vec4 mv = modelViewMatrix * vec4(position, 1.0);
+          gl_PointSize = aSize * (220.0 / -mv.z);
+          gl_Position = projectionMatrix * mv;
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vColor;
+        void main() {
+          vec2 c = gl_PointCoord - 0.5;
+          float d = length(c);
+          if (d > 0.5) discard;
+          float a = 1.0 - smoothstep(0.2, 0.5, d);
+          gl_FragColor = vec4(vColor, a);
+        }
+      `,
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+    });
+    this.points = new THREE.Points(geom, mat);
+    scene.add(this.points);
+    this.geom = geom;
+  }
+  emit(pos, count, opt = {}) {
+    const { color = new THREE.Color(0xffffff), speed = 3, lifetime = 1, size = 4, gravity = -6, spread = 1 } = opt;
+    for (let i = 0; i < count; i++) {
+      if (this.particles.length >= this.max) this.particles.shift();
+      const dir = new THREE.Vector3(
+        (Math.random() - 0.5) * 2 * spread,
+        Math.random() * 1.2 + 0.2,
+        (Math.random() - 0.5) * 2 * spread
+      ).normalize().multiplyScalar(speed * (0.5 + Math.random() * 0.8));
+      this.particles.push({
+        pos: pos.clone(), vel: dir,
+        color: color.clone(), life: 0,
+        maxLife: lifetime * (0.6 + Math.random() * 0.7),
+        size: size * (0.5 + Math.random() * 0.7),
+        gravity
+      });
+    }
+  }
+  update(dt) {
+    this.particles = this.particles.filter(p => {
+      p.life += dt;
+      if (p.life >= p.maxLife) return false;
+      p.pos.addScaledVector(p.vel, dt);
+      p.vel.y += p.gravity * dt;
+      p.vel.multiplyScalar(0.94);
+      return true;
+    });
+    for (let i = 0; i < this.max; i++) {
+      if (i < this.particles.length) {
+        const p = this.particles[i];
+        const r = p.life / p.maxLife;
+        this.positions[i*3] = p.pos.x;
+        this.positions[i*3+1] = p.pos.y;
+        this.positions[i*3+2] = p.pos.z;
+        this.colors[i*3] = p.color.r;
+        this.colors[i*3+1] = p.color.g;
+        this.colors[i*3+2] = p.color.b;
+        this.sizes[i] = p.size * (1 - r * 0.6);
+      } else {
+        this.sizes[i] = 0;
+      }
+    }
+    this.geom.attributes.position.needsUpdate = true;
+    this.geom.attributes.aColor.needsUpdate = true;
+    this.geom.attributes.aSize.needsUpdate = true;
+  }
+}
+const particles = new ParticleSystem(350);
+
+// ============= TRAJECTORY PREVIEW =============
+const TRAJ_COUNT = 16;
+const trajDotGeom = new THREE.SphereGeometry(0.065, 6, 4);
+const trajMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.75 });
+const trajectory = new THREE.InstancedMesh(trajDotGeom, trajMat, TRAJ_COUNT);
+trajectory.visible = false;
+trajectory.frustumCulled = false;
+scene.add(trajectory);
+const _dummy = new THREE.Object3D();
+const _white = new THREE.Color(0xffffff);
+const _green = new THREE.Color(0x76ff03);
+const _orange = new THREE.Color(0xff9100);
+for (let i = 0; i < TRAJ_COUNT; i++) {
+  _dummy.position.set(0, -100, 0);
+  _dummy.scale.setScalar(0.001);
+  _dummy.updateMatrix();
+  trajectory.setMatrixAt(i, _dummy.matrix);
+  trajectory.setColorAt(i, _white);
+}
+trajectory.instanceMatrix.needsUpdate = true;
+if (trajectory.instanceColor) trajectory.instanceColor.needsUpdate = true;
+
+// ============= TARGET INDICATOR =============
+const targetIndicator = new THREE.Group();
+const ringMat = new THREE.MeshBasicMaterial({ color: 0xfff59d, transparent: true, opacity: 0.6, side: THREE.DoubleSide });
+const ring = new THREE.Mesh(new THREE.RingGeometry(0.35, 0.48, 24), ringMat);
+ring.rotation.x = -Math.PI / 2;
+ring.position.y = 0.16;
+targetIndicator.add(ring);
+const ringInner = new THREE.Mesh(new THREE.RingGeometry(0.2, 0.26, 20), new THREE.MeshBasicMaterial({ color: 0xfff59d, transparent: true, opacity: 0.4, side: THREE.DoubleSide }));
+ringInner.rotation.x = -Math.PI / 2;
+ringInner.position.y = 0.17;
+targetIndicator.add(ringInner);
+targetIndicator.visible = false;
+scene.add(targetIndicator);
+
+// ============= GAME STATE =============
+const FROG_PAD_OFFSET = 0.05;
+const MIN_JUMP_DIST = 1.5; // Harder: was 1.0
+const MAX_JUMP_DIST = 7.5; // Harder: was 6.5
+
+const state = {
+  score: 0,
+  best: parseInt(localStorage.getItem('lilyleap_best') || '0'),
+  isCharging: false,
+  power: 0,
+  isJumping: false,
+  gameOver: false,
+  started: false,
+  frog: null,
+  pads: [],
+  currentPadIndex: 0,
+  lastDirection: -Math.PI / 2,
+  jumpStartTime: 0,
+  jumpDuration: 0,
+  jumpStartPos: new THREE.Vector3(),
+  jumpEndPos: new THREE.Vector3(),
+  jumpArcHeight: 0,
+  targetFrogRotation: Math.PI,
+  squash: 1,
+  blinkTimer: 0,
+  blinkPhase: 0,
+  padBobTime: 0
+};
+
+document.getElementById('best').textContent = state.best;
+
+state.frog = createFrog();
+state.frog.rotation.y = Math.PI;
+scene.add(state.frog);
+
+const startPad = createLilyPad(1.45, false);
+startPad.position.set(0, -0.2, 0);
+startPad.userData.size = 1.45;
+startPad.userData.bobOffset = 0;
+scene.add(startPad);
+state.pads.push(startPad);
+state.frog.position.set(0, -0.2 + FROG_PAD_OFFSET, 0);
+
+function spawnNextPad() {
+  const lastPad = state.pads[state.pads.length - 1];
+  // Harder: reaches max difficulty in 25 jumps instead of 45
+  const difficulty = Math.min(state.score / 25, 1);
+  
+  // Harder: longer distances
+  const minDist = 3.0 + difficulty * 0.8;
+  const maxDist = 4.0 + difficulty * 2.5;
+  const distance = minDist + Math.random() * (maxDist - minDist);
+
+  const angleVar = 0.6 + difficulty * 0.4;
+  let newAngle = state.lastDirection + (Math.random() - 0.5) * angleVar;
+  if (newAngle > -0.3) newAngle = -0.3;
+  if (newAngle < -Math.PI + 0.3) newAngle = -Math.PI + 0.3;
+  state.lastDirection = newAngle;
+
+  const x = lastPad.position.x + Math.cos(newAngle) * distance;
+  const z = lastPad.position.z + Math.sin(newAngle) * distance;
+  
+  // Harder: smaller pads
+  const size = Math.max(0.6, 1.25 - difficulty * 0.5 + (Math.random() - 0.5) * 0.1);
+
+  const pad = createLilyPad(size, Math.random() > 0.35);
+  pad.position.set(x, -0.2, z);
+  pad.userData.bobOffset = Math.random() * Math.PI * 2;
+  pad.userData.size = size;
+  scene.add(pad);
+  state.pads.push(pad);
+
+  targetIndicator.position.set(x, -0.2, z);
+  targetIndicator.userData.bobOffset = pad.userData.bobOffset;
+  targetIndicator.visible = true;
+
+  const dx = x - state.frog.position.x;
+  const dz = z - state.frog.position.z;
+  state.targetFrogRotation = Math.atan2(dx, dz);
+}
+
+// ============= INPUT =============
+const powerContainer = document.getElementById('power-container');
+const powerFill = document.getElementById('power-fill');
+const instructionsEl = document.getElementById('instructions');
+
+function startCharge(e) {
+  if (e) e.preventDefault();
+  if (!state.started || state.gameOver || state.isJumping) return;
+  state.isCharging = true;
+  state.power = 0;
+  powerContainer.classList.add('active');
+}
+function releaseJump(e) {
+  if (e) e.preventDefault();
+  if (!state.isCharging) return;
+  state.isCharging = false;
+  powerContainer.classList.remove('active');
+  trajectory.visible = false;
+  if (state.power < 0.02) { state.power = 0; powerFill.style.width = '0%'; return; }
+
+  const nextPad = state.pads[state.currentPadIndex + 1];
+  if (!nextPad) { state.power = 0; powerFill.style.width = '0%'; return; }
+
+  const dx = nextPad.position.x - state.frog.position.x;
+  const dz = nextPad.position.z - state.frog.position.z;
+  const direction = new THREE.Vector3(dx, 0, dz).normalize();
+  const jumpDistance = MIN_JUMP_DIST + state.power * (MAX_JUMP_DIST - MIN_JUMP_DIST);
+
+  state.jumpStartPos.copy(state.frog.position);
+  state.jumpEndPos.copy(state.frog.position).addScaledVector(direction, jumpDistance);
+  state.jumpEndPos.y = nextPad.position.y + FROG_PAD_OFFSET;
+  state.isJumping = true;
+  state.jumpStartTime = clock.elapsedTime;
+  state.jumpDuration = 0.42 + state.power * 0.4;
+  state.jumpArcHeight = 1.2 + state.power * 2.2;
+  state.power = 0;
+  powerFill.style.width = '0%';
+
+  if (state.score === 0) setTimeout(() => { instructionsEl.style.opacity = '0'; }, 500);
+}
+
+canvas.addEventListener('touchstart', startCharge, { passive: false });
+canvas.addEventListener('touchend', releaseJump, { passive: false });
+canvas.addEventListener('touchcancel', releaseJump, { passive: false });
+canvas.addEventListener('mousedown', startCharge);
+window.addEventListener('mouseup', releaseJump);
+window.addEventListener('keydown', (e) => { if (e.code === 'Space') { e.preventDefault(); if (!state.isCharging) startCharge(); } });
+window.addEventListener('keyup', (e) => { if (e.code === 'Space') { e.preventDefault(); releaseJump(); } });
+
+// ============= TRAJECTORY UPDATE =============
+function updateTrajectory() {
+  if (!state.isCharging || state.isJumping) {
+    trajectory.visible = false;
+    return;
+  }
+  const nextPad = state.pads[state.currentPadIndex + 1];
+  if (!nextPad) { trajectory.visible = false; return; }
+
+  const dx = nextPad.position.x - state.frog.position.x;
+  const dz = nextPad.position.z - state.frog.position.z;
+  const dir = new THREE.Vector3(dx, 0, dz).normalize();
+  const jumpDist = MIN_JUMP_DIST + state.power * (MAX_JUMP_DIST - MIN_JUMP_DIST);
+  const arcHeight = 1.2 + state.power * 2.2;
+
+  const startX = state.frog.position.x;
+  const startY = state.frog.position.y;
+  const startZ = state.frog.position.z;
+  const endX = startX + dir.x * jumpDist;
+  const endZ = startZ + dir.z * jumpDist;
+  const endY = nextPad.position.y + FROG_PAD_OFFSET;
+
+  const ldx = endX - nextPad.position.x;
+  const ldz = endZ - nextPad.position.z;
+  const landDist = Math.sqrt(ldx*ldx + ldz*ldz);
+  
+  // Harder: stricter landing radius (0.85 instead of 0.92)
+  const onPad = landDist < nextPad.userData.size * 0.85;
+  const dotColor = onPad ? _green : _orange;
+
+  for (let i = 0; i < TRAJ_COUNT; i++) {
+    const t = i / (TRAJ_COUNT - 1);
+    const px = startX + (endX - startX) * t;
+    const pz = startZ + (endZ - startZ) * t;
+    const py = startY + (endY - startY) * t + arcHeight * 4 * t * (1 - t);
+    const scale = 0.35 + (1 - t) * 0.65;
+    _dummy.position.set(px, py, pz);
+    _dummy.scale.setScalar(scale);
+    _dummy.updateMatrix();
+    trajectory.setMatrixAt(i, _dummy.matrix);
+    trajectory.setColorAt(i, dotColor);
+  }
+  trajectory.instanceMatrix.needsUpdate = true;
+  if (trajectory.instanceColor) trajectory.instanceColor.needsUpdate = true;
+  trajectory.visible = true;
+}
+
+// ============= GAME LOGIC =============
+function checkLanding() {
+  const nextPad = state.pads[state.currentPadIndex + 1];
+  const fp = state.frog.position;
+  const dx = fp.x - nextPad.position.x;
+  const dz = fp.z - nextPad.position.z;
+  const dist = Math.sqrt(dx*dx + dz*dz);
+  
+  // Harder: stricter landing radius (0.85 instead of 0.92)
+  const landRadius = nextPad.userData.size * 0.85;
+
+  if (dist < landRadius) {
+    state.score++;
+    state.currentPadIndex++;
+    document.getElementById('score').textContent = state.score;
+
+    state.frog.position.x = nextPad.position.x;
+    state.frog.position.z = nextPad.position.z;
+
+    particles.emit(new THREE.Vector3(fp.x, 0.05, fp.z), 10, {
+      color: new THREE.Color(0xc0e8ff), speed: 1.8, lifetime: 0.6, size: 3, gravity: -4, spread: 0.7
+    });
+    particles.emit(new THREE.Vector3(fp.x, 0.1, fp.z), 6, {
+      color: new THREE.Color(0x8fd87e), speed: 1.2, lifetime: 0.4, size: 2.5, gravity: -3, spread: 0.5
+    });
+
+    state.squash = 0.6;
+
+    if (state.score > state.best) {
+      state.best = state.score;
+      localStorage.setItem('lilyleap_best', state.best.toString());
+      document.getElementById('best').textContent = state.best;
+    }
+
+    while (state.pads.length > state.currentPadIndex + 5) {
+      const old = state.pads.shift();
+      scene.remove(old);
+      old.traverse(c => {
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) { Array.isArray(c.material) ? c.material.forEach(m => m.dispose()) : c.material.dispose(); }
+      });
+      state.currentPadIndex--;
+    }
+
+    spawnNextPad();
+    state.isJumping = false;
+  } else {
+    state.gameOver = true;
+    state.isJumping = false;
+    state.frog.visible = false;
+
+    particles.emit(new THREE.Vector3(fp.x, 0, fp.z), 40, {
+      color: new THREE.Color(0xd0e8f5), speed: 4.5, lifetime: 1.2, size: 5, gravity: -9, spread: 1.4
+    });
+    for (let i = 0; i < 20; i++) {
+      const a = (i / 20) * Math.PI * 2;
+      particles.emit(new THREE.Vector3(fp.x + Math.cos(a) * 0.3, 0.08, fp.z + Math.sin(a) * 0.3), 1, {
+        color: new THREE.Color(0x90c8e8), speed: 3, lifetime: 0.9, size: 3.5, gravity: -7, spread: 0.3
+      });
+    }
+
+    setTimeout(() => {
+      document.getElementById('final-score').textContent = state.score;
+      const newBest = document.getElementById('new-best');
+      if (state.score >= state.best && state.score > 0) newBest.classList.remove('hidden');
+      else newBest.classList.add('hidden');
+      document.getElementById('game-over').classList.add('visible');
+    }, 850);
+  }
+}
+
+function restartGame() {
+  for (let i = state.pads.length - 1; i > 0; i--) {
+    scene.remove(state.pads[i]);
+    state.pads[i].traverse(c => {
+      if (c.geometry) c.geometry.dispose();
+      if (c.material) { Array.isArray(c.material) ? c.material.forEach(m => m.dispose()) : c.material.dispose(); }
+    });
+    state.pads.pop();
+  }
+  state.currentPadIndex = 0;
+  state.lastDirection = -Math.PI / 2;
+  state.frog.visible = true;
+  state.frog.position.set(0, -0.2 + FROG_PAD_OFFSET, 0);
+  state.frog.rotation.set(Math.PI, 0, 0);
+  state.targetFrogRotation = Math.PI;
+  state.squash = 1;
+  state.score = 0;
+  state.isCharging = false;
+  state.power = 0;
+  state.isJumping = false;
+  state.gameOver = false;
+  document.getElementById('score').textContent = '0';
+  document.getElementById('game-over').classList.remove('visible');
+  powerContainer.classList.remove('active');
+  powerFill.style.width = '0%';
+  instructionsEl.style.opacity = '0.85';
+  spawnNextPad();
+}
+
+document.getElementById('restart-btn').addEventListener('click', restartGame);
+document.getElementById('start-btn').addEventListener('click', () => {
+  document.getElementById('start-screen').classList.add('hidden');
+  state.started = true;
+  spawnNextPad();
+});
+
+// ============= ANIMATION LOOP =============
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const time = clock.elapsedTime;
+
+  waterUniforms.time.value = time;
+  skyMat.uniforms.time.value = time;
+
+  sky.position.copy(camera.position);
+
+  particles.update(dt);
+
+  state.padBobTime += dt;
+  for (const pad of state.pads) {
+    if (pad.userData.bobOffset !== undefined) {
+      pad.position.y = -0.2 + Math.sin(state.padBobTime * 1.2 + pad.userData.bobOffset) * 0.022;
+      pad.rotation.z = Math.sin(state.padBobTime * 0.9 + pad.userData.bobOffset) * 0.02;
+    }
+  }
+  scene.children.forEach(c => {
+    if (c.userData.decorative) {
+      c.position.y = -0.22 + Math.sin(state.padBobTime * 1.2 + c.userData.bobOffset) * 0.02;
+    }
+  });
+
+  if (targetIndicator.visible) {
+    const nextPad = state.pads[state.currentPadIndex + 1];
+    if (nextPad) {
+      targetIndicator.position.x = nextPad.position.x;
+      targetIndicator.position.z = nextPad.position.z;
+      targetIndicator.position.y = nextPad.position.y;
+      const pulse = 1 + Math.sin(time * 3) * 0.1;
+      ring.scale.set(pulse, pulse, 1);
+      ringInner.scale.set(1 + Math.sin(time * 3 + 1) * 0.15, 1 + Math.sin(time * 3 + 1) * 0.15, 1);
+      ringMat.opacity = 0.45 + Math.sin(time * 3) * 0.2;
+    }
+  }
+
+  if (state.started && !state.gameOver) {
+    const currentPad = state.pads[state.currentPadIndex];
+
+    if (state.isCharging) {
+      // Harder: faster charge rate (1.2 instead of 0.85)
+      state.power = Math.min(1, state.power + dt * 1.2);
+      powerFill.style.width = (state.power * 100) + '%';
+      state.squash = 1 - state.power * 0.4;
+      if (currentPad) {
+        state.frog.position.x = currentPad.position.x;
+        state.frog.position.z = currentPad.position.z;
+        state.frog.position.y = currentPad.position.y + FROG_PAD_OFFSET;
+      }
+      updateTrajectory();
+    } else if (!state.isJumping) {
+      state.squash += (1 - state.squash) * (1 - Math.exp(-dt * 10));
+      if (currentPad) {
+        state.frog.position.x = currentPad.position.x;
+        state.frog.position.z = currentPad.position.z;
+        state.frog.position.y = currentPad.position.y + FROG_PAD_OFFSET;
+      }
+    }
+
+    state.blinkTimer += dt;
+    if (state.blinkTimer > 3.5 + Math.random() * 2) { state.blinkTimer = 0; state.blinkPhase = 1; }
+    state.blinkPhase = Math.max(0, state.blinkPhase - dt * 5);
+
+    if (state.isJumping) {
+      const elapsed = time - state.jumpStartTime;
+      const t = Math.min(elapsed / state.jumpDuration, 1);
+      const x = state.jumpStartPos.x + (state.jumpEndPos.x - state.jumpStartPos.x) * t;
+      const z = state.jumpStartPos.z + (state.jumpEndPos.z - state.jumpStartPos.z) * t;
+      const y = state.jumpStartPos.y + (state.jumpEndPos.y - state.jumpStartPos.y) * t + state.jumpArcHeight * 4 * t * (1 - t);
+      state.frog.position.set(x, y, z);
+
+      if (t < 0.2) state.squash = 1 + (t / 0.2) * 0.3;
+      else if (t > 0.8) state.squash = 1.3 - ((t - 0.8) / 0.2) * 0.5;
+      else state.squash = 1.3;
+
+      state.frog.rotation.x = -Math.sin(t * Math.PI) * 0.3;
+
+      if (Math.random() > 0.6) {
+        particles.emit(state.frog.position.clone(), 1, {
+          color: new THREE.Color(0xc8f0c0), speed: 0.5, lifetime: 0.4, size: 2, gravity: -2, spread: 0.3
+        });
+      }
+
+      if (t >= 1) {
+        state.frog.rotation.x = 0;
+        checkLanding();
+      }
+    } else {
+      let rotDiff = state.targetFrogRotation - state.frog.rotation.y;
+      while (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
+      while (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
+      state.frog.rotation.y += rotDiff * (1 - Math.exp(-dt * 8));
+      state.frog.rotation.x *= Math.exp(-dt * 10);
+    }
+
+    const ud = state.frog.userData;
+    ud.body.scale.y = state.squash;
+    const inv = 1 + (1 - state.squash) * 0.4;
+    ud.body.scale.x = inv;
+    ud.body.scale.z = inv;
+    ud.belly.scale.y = state.squash;
+    ud.belly.scale.x = 1 + (1 - state.squash) * 0.3;
+    ud.belly.scale.z = 1 + (1 - state.squash) * 0.3;
+    const eyeSq = 0.9 + state.squash * 0.15;
+    const blinkFactor = 1 - state.blinkPhase * 0.85;
+    ud.eyeL.scale.y = eyeSq * blinkFactor;
+    ud.eyeR.scale.y = eyeSq * blinkFactor;
+
+    const frogRot = state.frog.rotation.y;
+    const camDist = 6.5;
+    const camHeight = 5.0;
+    const desiredX = state.frog.position.x - Math.sin(frogRot) * camDist;
+    const desiredZ = state.frog.position.z - Math.cos(frogRot) * camDist;
+    const camLerp = 1 - Math.exp(-dt * 5);
+    camera.position.x += (desiredX - camera.position.x) * camLerp;
+    camera.position.y += (camHeight - camera.position.y) * camLerp;
+    camera.position.z += (desiredZ - camera.position.z) * camLerp;
+
+    const lookX = state.frog.position.x + Math.sin(frogRot) * 2.5;
+    const lookZ = state.frog.position.z + Math.cos(frogRot) * 2.5;
+
+    camera.lookAt(lookX, 0.8, lookZ);
+  }
+
+  renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>
